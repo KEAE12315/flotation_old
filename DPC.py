@@ -8,9 +8,10 @@ class DPC:
         self.df = data
         self.N = self.df.shape[0]
 
-        self._calDis()
+    def loadDis(self, dis):
+        self.dis = dis
 
-    def _calDis(self):
+    def calDis(self):
         disMatrix = np.zeros((self.N, self.N))
         for i, ix, iy in self.df[['x', 'y']].itertuples():
             for j, jx, jy in self.df.loc[i+1:, ['x', 'y']].itertuples():
