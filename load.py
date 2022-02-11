@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-
+import os
 
 class Load:
     def __init__(self) -> None:
@@ -37,3 +37,8 @@ class Load:
                 disMatrix[i, j] = float(line[2])
                 disMatrix[j, i] = float(line[2])
         return disMatrix
+
+def load_xy(file_path):
+    for path, dir, file in os.walk(file_path):
+        for f in file:
+            yield pd.read_csv(path+f,names=['x','y','clusterID'],sep='\t')
