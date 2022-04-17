@@ -5,11 +5,13 @@ name = "pypi"
 
 [packages]
 pandas = "*"
+haversine = "*"
 
 [dev-packages]
 matplotlib = "*"
 autopep8 = "*"
 ipykernel = "*"
+folium = "*"
 
 [requires]
 python_version = "3.8"

@@ -1,3 +1,6 @@
 __pycache__
 .venv
 .vscode
+.DS_Store
+
+dataset/Geolife Trajectories 1.3

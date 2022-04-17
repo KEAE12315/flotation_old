@@ -1,4 +1,4 @@
-from distance import norm2
+from distance import norm2, coh
 import pandas as pd
 import numpy as np
 
@@ -16,6 +16,7 @@ class DPC:
 
         self.df = data
         self.N = self.df.shape[0]
+        self.dc = None
 
     def loadDis(self, dis):
         """当输入数据为距离矩阵时可以直接导入不必计算
@@ -36,8 +37,8 @@ class DPC:
             tmp = tmp.ravel()
             tmp = tmp[np.where(tmp)]
             tmp = np.sort(tmp)
-            self.dc = tmp[round(len(tmp)*kwargs['p'])]
-            print('dc: '+str(self.dc))
+            self.dc = tmp[round(len(tmp) * kwargs['p'])]
+            print('dc: ' + str(self.dc))
 
         def Bonferroni():
             def Bonferroni_index(x):
@@ -46,18 +47,18 @@ class DPC:
                 N = len(x)
                 tmp = sum(x)
                 for i, _ in x[:-1].items():
-                    p = (i+1)/N
-                    q = sum(x[:i+1])/tmp
-                    b = b+(1-q/p)
+                    p = (i + 1) / N
+                    q = sum(x[:i + 1]) / tmp
+                    b = b + (1 - q / p)
 
-                b = b/(N-1)
-                print('Bonferroni'+str(b))
+                b = b / (N - 1)
+                print('Bonferroni' + str(b))
                 return b
 
             dcs = []
             bfs = []
             for d in np.linspace(0.001, self.dis.max(), 1000):
-                print('dc'+str(d))
+                print('dc' + str(d))
                 self.calRho(d)
                 self.calDel()
                 self.calGam()
@@ -73,15 +74,15 @@ class DPC:
         tmp = tmp.ravel()
         tmp = tmp[np.where(tmp)]
         tmp = np.sort(tmp)
-        self.dc = tmp[round(len(tmp)*p)]
-        print('dc: '+str(self.dc))
+        self.dc = tmp[round(len(tmp) * p)]
+        print('dc: ' + str(self.dc))
 
     def calDis(self):
         """当输入数据为坐标点时需要计算距离矩阵
         """
         disMatrix = np.zeros((self.N, self.N))
         for i, ix, iy in self.df[['x', 'y']].itertuples():
-            for j, jx, jy in self.df.loc[i+1:, ['x', 'y']].itertuples():
+            for j, jx, jy in self.df.loc[i + 1:, ['x', 'y']].itertuples():
                 d = norm2(ix, iy, jx, jy)
                 disMatrix[i, j] = d
                 disMatrix[j, i] = d
@@ -105,18 +106,18 @@ class DPC:
             dc = dc
 
         if kernel == 'cutoff':
-            for i, *_ in self.df[:self.N-2].itertuples():
-                for j, *_ in self.df[i+1:self.N-1].itertuples():
+            for i, *_ in self.df[:self.N - 2].itertuples():
+                for j, *_ in self.df[i + 1:self.N - 1].itertuples():
                     if self.dis[i, j] < dc:
-                        rho[i] = rho[i]+1
-                        rho[j] = rho[j]+1
+                        rho[i] = rho[i] + 1
+                        rho[j] = rho[j] + 1
 
         elif kernel == 'gaussian':
-            for i, *_ in self.df[:self.N-2].itertuples():
-                for j, *_ in self.df[i+1:self.N-1].itertuples():
-                    tmp = np.exp(-(self.dis[i, j]/dc)**2)
-                    rho[i] = rho[i]+tmp
-                    rho[j] = rho[j]+tmp
+            for i, *_ in self.df[:self.N - 2].itertuples():
+                for j, *_ in self.df[i + 1:self.N - 1].itertuples():
+                    tmp = np.exp(-(self.dis[i, j] / dc)**2)
+                    rho[i] = rho[i] + tmp
+                    rho[j] = rho[j] + tmp
 
         self.df['rho'] = rho
 
@@ -139,7 +140,7 @@ class DPC:
         self.df['toh'] = toh
 
     def calGam(self):
-        self.df['gamma'] = self.df['rho']*self.df['delta']
+        self.df['gamma'] = self.df['rho'] * self.df['delta']
 
     def getCen(self, n):
         self.centers = self.df.sort_values(
@@ -155,7 +156,27 @@ class DPC:
         self.df.loc[self.centers, 'toh'] = -1
         for i, c in enumerate(self.centers):
             print(i, c)
-            group(c, i+1)
+            group(c, i + 1)
+
+
+class DPCLink(DPC):
+    """针对GPS坐标聚类, 采用区域一致性指数作为距离"""
+
+    def __init__(self, data) -> None:
+        """数据源为GPS序列, 每个点应有: lat, lng, data"""
+        self.df = data
+
+    def calDis(self):
+        disMatrix = np.zeros((self.N, self.N))
+        for i, ix, iy in self.df[['x', 'y']].itertuples():
+            for j, jx, jy in self.df.loc[i + 1:, ['x', 'y']].itertuples():
+                d = norm2(ix, iy, jx, jy)
+                disMatrix[i, j] = d
+                disMatrix[j, i] = d
+
+        self.dis = disMatrix
+
+    pass
 
 
 if __name__ == "__main__":
