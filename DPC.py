@@ -1,19 +1,28 @@
-from distance import norm2, coh
-import pandas as pd
+# -*- encoding: utf-8 -*-
+'''
+@Description:
+密度峰值聚类
+@Date     :2022/04/18 10:36:14
+@Author      :pangliwei-bjut
+@version      :1.1
+'''
+
 import numpy as np
+import pandas as pd
+from distance import norm2, coh
 
 
 class DPC:
+    """密度峰值聚类算法
+
+    输入数据支持两种类型:
+    1. 集合的二维坐标. 初始化时可以直接导入坐标, 然后需要通过调用calDis()计算距离坐标
+    2. 距离矩阵. 需要通过MDS反变化得到二维坐标再导入坐标, 距离矩阵可以直接通过loadDis()载入.
+
+    输出: dataframe数据, 含clusterID列表明该点属于哪个簇
+    """
+
     def __init__(self, data) -> None:
-        """密度峰值聚类算法
-
-        输入数据支持两种类型:
-        1. 集合的二维坐标. 初始化时可以直接导入坐标, 然后需要通过调用calDis()计算距离坐标
-        2. 距离矩阵. 需要通过MDS反变化得到二维坐标再导入坐标, 距离矩阵可以直接通过loadDis()载入.
-
-        输出: dataframe数据, 含clusterID列表明该点属于哪个簇
-        """
-
         self.df = data
         self.N = self.df.shape[0]
         self.dc = None
@@ -24,7 +33,7 @@ class DPC:
         self.dis = dis
 
     def calDc(self, method='proportion', **kwargs):
-        """计算截断距离dc
+        """@description  :计算截断距离dc
 
         Args
         - method: 计算dc的方法, 默认为proportion. 各方法所需参数需用关键词给出.
@@ -37,6 +46,7 @@ class DPC:
             tmp = tmp.ravel()
             tmp = tmp[np.where(tmp)]
             tmp = np.sort(tmp)
+            print(tmp)
             self.dc = tmp[round(len(tmp) * kwargs['p'])]
             print('dc: ' + str(self.dc))
 
@@ -69,16 +79,8 @@ class DPC:
 
         return locals()[method]()
 
-    def calDc_raw(self, p):
-        tmp = np.tril(self.dis)
-        tmp = tmp.ravel()
-        tmp = tmp[np.where(tmp)]
-        tmp = np.sort(tmp)
-        self.dc = tmp[round(len(tmp) * p)]
-        print('dc: ' + str(self.dc))
-
     def calDis(self):
-        """当输入数据为坐标点时需要计算距离矩阵
+        """计算距离矩阵
         """
         disMatrix = np.zeros((self.N, self.N))
         for i, ix, iy in self.df[['x', 'y']].itertuples():
@@ -93,7 +95,7 @@ class DPC:
         """计算局部密度
 
         Args:
-            - dc: 截断距离, 默认为None, 此时调用self.dc. 如果传入则采用传入值.
+            - dc: 截断距离, 默认调用self.dc.
             - kernel: 计算方式
                 - gaussian: 高斯核
                 - cutoff: 截断式
@@ -162,49 +164,55 @@ class DPC:
 class DPCLink(DPC):
     """针对GPS坐标聚类, 采用区域一致性指数作为距离"""
 
-    def __init__(self, data) -> None:
-        """数据源为GPS序列, 每个点应有: lat, lng, data"""
-        self.df = data
-
     def calDis(self):
+        """计算距离矩阵
+        """
         disMatrix = np.zeros((self.N, self.N))
-        for i, ix, iy in self.df[['x', 'y']].itertuples():
-            for j, jx, jy in self.df.loc[i + 1:, ['x', 'y']].itertuples():
-                d = norm2(ix, iy, jx, jy)
+        for p in (self.df.itertuples()):
+            i = p.Index
+            for q in (self.df[i + 1:].itertuples()):
+                j = q.Index
+                d = coh(p, q)
                 disMatrix[i, j] = d
                 disMatrix[j, i] = d
 
         self.dis = disMatrix
 
-    pass
+    def calRho(self, dc=None):
+
+        rho = np.zeros(self.N)
+
+        if dc == None:
+            dc = self.dc
+        else:
+            dc = dc
+
+        for i, *_ in self.df[:self.N - 1].itertuples():
+            for j, *_ in self.df[i + 1:self.N].itertuples():
+                if self.dis[i, j] > dc:
+                    rho[i] = rho[i] + 1
+                    rho[j] = rho[j] + 1
+
+        self.df['rho'] = rho
 
 
 if __name__ == "__main__":
     from load import *
 
-    load = load_xy('dataset/xy/')
-    data = next(load)
-    data = next(load)
-    dpc = DPC(data[['x', 'y']])
+    dataset_path = 'dataset/Geolife Trajectories 1.3/Data/'
+    for df in LoadG(dataset_path):
+        df.plot(x='lng', y='lat')
+        break
+
+    dpc = DPCLink(df)
     dpc.calDis()
-    dpc.calDc(p=0.01)
-    # dpc.calDc_raw(0.01)
-    # dpc.calRho()
-    # dpc.calDel()
-    # dpc.calGam()
-
-    # dpc.getCen(15)
-
-    # import matplotlib.pyplot as plt
-    # dpc.cluster()
-    # print(np.sort(dpc.df['clusterID'].unique()))
-
-    # fig, ax = plt.subplots()
-    # for i, ri in dpc.df.drop(dpc.centers).iterrows():
-    #     ax.arrow(ri['x'], ri['y'], dpc.df.loc[ri['toh'], 'x']-ri['x'],
-    #              dpc.df.loc[ri['toh'], 'y']-ri['y'], lw=0.01, head_width=0.02)
-    # # dpc.df.plot.scatter(x="x", y='y', s=1, c='rho', cmap='viridis', ax=ax)
-
-    # dpc.df.plot.scatter(x='x', y='y', c='clusterID', cmap='tab20', ax=ax)
-    # ax.set_axis_off()
-    # plt.show()
+    dpc.calDc(p=0.5)
+    dpc.calRho()
+    dpc.calDel()
+    dpc.df.plot.scatter(
+        x='lng',
+        y='lat',
+        c='rho',
+        colormap='viridis',
+        s=5,
+        figsize=(10, 10))

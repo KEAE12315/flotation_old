@@ -51,7 +51,8 @@ def load_xy(file_path):
 class Load:
     """
     可迭代容器类，按顺序返回文件夹路径下的所有文件. 
-    默认行为是返回readcsv的结果. 如需更改读取单个文件的方式, 重载readOne函数.
+    默认行为是返回pd.readcsv的结果. 
+    如需更改读取单个文件的方式, 重载readOne函数.
 
     Args:
         dir_path: 要迭代的文件夹。
