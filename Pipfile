@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 pandas = "*"
 haversine = "*"
+pyyaml = "*"
 
 [dev-packages]
 matplotlib = "*"

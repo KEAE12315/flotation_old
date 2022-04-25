@@ -1,0 +1,36 @@
+version: 1
+
+formatters:
+  cons:
+    format: '%(name)-16s %(levelname)-8s %(message)s'
+  file:
+    format: '%(asctime)s %(name)-16s %(levelname)-8s %(message)s'
+
+handlers:
+  c1:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: cons
+    stream: ext://sys.stdout
+  f1:
+    class: logging.handlers.RotatingFileHandler
+    level: DEBUG
+    mode: w
+    formatter: file
+    filename: ./logs/all.log
+    encoding: utf8
+    maxBytes: 10485760
+    backupCount: 3
+
+loggers:
+  dpc:
+    level: DEBUG
+    handlers: [c1, f1] 
+    propagate: no
+  load:
+    level: DEBUG
+    handlers: [f1]
+
+root:
+  level: DEBUG
+  handlers: [c1]

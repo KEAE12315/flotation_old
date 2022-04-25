@@ -1,8 +1,10 @@
+from http.client import ImproperConnectionState
 from re import L
 import re
 import numpy as np
 import pandas as pd
 import os
+import logging
 
 
 class LoadD:
@@ -62,6 +64,7 @@ class Load:
 
     def __init__(self, dir_path):
         self.dir_path = dir_path
+        self.logger = logging.getLogger('load')
 
     def readOne(self, path):
         return pd.read_csv(path)
@@ -83,7 +86,7 @@ class Load:
             files = filter(self.filterF, files)
 
             for name in files:
-                print(os.path.join(root, name))
+                self.logger.debug(os.path.join(root, name))
                 df = self.readOne(os.path.join(root, name))
 
                 yield df
@@ -102,7 +105,7 @@ class LoadG(Load):
         df['datetime'] = df.date + ' ' + df.time
         df.datetime = pd.to_datetime(df.datetime)
         df.drop(columns=['date', 'time'], inplace=True)
-        # df = df.iloc[::12, :]
+        df = df.iloc[::12, :]
         df = df.reset_index(drop=True)
 
         return df

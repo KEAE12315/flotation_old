@@ -32,5 +32,5 @@ def coh(p, q, delta=0.1):
 
     a = distance / delta
     b = speed
-    c = math.exp(-a - b)
+    c = math.atan(a + b)
     return c

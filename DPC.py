@@ -10,6 +10,10 @@
 import numpy as np
 import pandas as pd
 from distance import norm2, coh
+from haversine import haversine
+
+import logging
+dpc_logger = logging.getLogger('dpc')
 
 
 class DPC:
@@ -27,10 +31,15 @@ class DPC:
         self.N = self.df.shape[0]
         self.dc = None
 
+        self.logger = logging.getLogger('dpc.DPC')
+        self.logger.info('Total number of tracks: '+str(len(self.df.trackID.unique())))
+        self.logger.info('Total number of points: '+str(self.df.shape[0]))
+
     def loadDis(self, dis):
         """当输入数据为距离矩阵时可以直接导入不必计算
         """
         self.dis = dis
+        self.logger.info('Distance matrix was imported successfully')
 
     def calDc(self, method='proportion', **kwargs):
         """@description  :计算截断距离dc
@@ -40,15 +49,19 @@ class DPC:
             - proportion: 按照所有点之间的距离中选取前百分之多少(p)选取dc. 关键词参数p
             - Bonferroni: 根据邦费罗尼指数选取dc
         """
+        logger = logging.getLogger('dpc.DPC.calDc')
+        loggerP = logging.getLogger('dpc.DPC.calDc.proportion')
+        loggerB = logging.getLogger('dpc.DPC.calDc.Bonferroni')
+        logger.info('Calculate dc by method '+method)
 
         def proportion():
             tmp = np.tril(self.dis)
             tmp = tmp.ravel()
             tmp = tmp[np.where(tmp)]
             tmp = np.sort(tmp)
-            print(tmp)
             self.dc = tmp[round(len(tmp) * kwargs['p'])]
-            print('dc: ' + str(self.dc))
+
+            loggerP.debug('Order of all distances: '+str(tmp))
 
         def Bonferroni():
             def Bonferroni_index(x):
@@ -77,11 +90,15 @@ class DPC:
 
             return dcs, bfs
 
-        return locals()[method]()
+        tmp = locals()[method]()
+        logger.info('Cut-off distance calculated successfully as '+str(self.dc)+' with '+method)
+        return tmp
 
     def calDis(self):
         """计算距离矩阵
         """
+        logger = logging.getLogger('dpc.DPCL.calDis')
+
         disMatrix = np.zeros((self.N, self.N))
         for i, ix, iy in self.df[['x', 'y']].itertuples():
             for j, jx, jy in self.df.loc[i + 1:, ['x', 'y']].itertuples():
@@ -89,7 +106,10 @@ class DPC:
                 disMatrix[i, j] = d
                 disMatrix[j, i] = d
 
+        logger.info('Distance matrix calculated successfully')
+
         self.dis = disMatrix
+        return disMatrix
 
     def calRho(self, dc=None, kernel='gaussian'):
         """计算局部密度
@@ -100,6 +120,9 @@ class DPC:
                 - gaussian: 高斯核
                 - cutoff: 截断式
         """
+        logger = logging.getLogger('dpc.DPCL.calRho')
+        logger.info('Local density calculated with method '+kernel)
+
         rho = np.zeros(self.N)
 
         if dc == None:
@@ -107,23 +130,27 @@ class DPC:
         else:
             dc = dc
 
-        if kernel == 'cutoff':
-            for i, *_ in self.df[:self.N - 2].itertuples():
-                for j, *_ in self.df[i + 1:self.N - 1].itertuples():
-                    if self.dis[i, j] < dc:
-                        rho[i] = rho[i] + 1
-                        rho[j] = rho[j] + 1
+        def cutoff():
+            if self.dis[i, j] < dc:
+                return 1
 
-        elif kernel == 'gaussian':
-            for i, *_ in self.df[:self.N - 2].itertuples():
-                for j, *_ in self.df[i + 1:self.N - 1].itertuples():
-                    tmp = np.exp(-(self.dis[i, j] / dc)**2)
-                    rho[i] = rho[i] + tmp
-                    rho[j] = rho[j] + tmp
+        def gaussian():
+            return np.exp(-(self.dis[i, j] / dc)**2)
+
+        for i, *_ in self.df[:self.N - 2].itertuples():
+            for j, *_ in self.df[i + 1:self.N - 1].itertuples():
+                tmp = locals()[kernel]()
+                rho[i] = rho[i] + tmp
+                rho[j] = rho[j] + tmp
+
+            logger.debug('rho of '+str(i)+': '+str(tmp))
 
         self.df['rho'] = rho
+        return rho
 
     def calDel(self):
+        logger = logging.getLogger('dpc.DPCL.calDel')
+
         delta = np.zeros(self.N)
         toh = np.zeros(self.N)
 
@@ -133,86 +160,104 @@ class DPC:
                 disp = pd.Series(self.dis[i, :])[indexs]
                 delta[i] = disp.min()
                 toh[i] = disp.idxmin()
+                logger.debug(str(i)+' to high density point '+str(toh[i]))
             else:
-                # print(i)
+                logger.info('Highest density point: '+str(i))
                 delta[i] = max(self.dis[i, :])
                 toh[i] = -1
 
         self.df['delta'] = delta
         self.df['toh'] = toh
 
+        return delta, toh
+
     def calGam(self):
+        self.logger.info('Gamma calculating')
         self.df['gamma'] = self.df['rho'] * self.df['delta']
 
     def getCen(self, n):
-        self.centers = self.df.sort_values(
-            by='gamma', ascending=False).index.values[:n]
-        print(self.centers)
+        self.centers = self.df.sort_values(by='gamma', ascending=False).index.values[:n]
+        self.logger.info(str(n)+' center points: '+str(self.centers))
 
     def cluster(self):
+        logger = logging.getLogger('dpc.DPC.cluster')
+
         def group(i, id):
             self.df.loc[i, 'clusterID'] = id
+            logger.debug(str(i)+' was classified as cluster '+str(id))
+
             for j in self.df[self.df.toh == i].index.tolist():
                 group(j, id)
 
+        # 聚类中心不应该指向比它密度更高的聚类中心
         self.df.loc[self.centers, 'toh'] = -1
-        for i, c in enumerate(self.centers):
-            print(i, c)
-            group(c, i + 1)
+
+        for idCluster, indexCenter in enumerate(self.centers):
+            group(indexCenter, idCluster + 1)
+            logger.info('The number of cluster '+str(idCluster+1)+'--'+str(indexCenter)+': '+str(self.df[self.df.clusterID == idCluster + 1].shape[0]))
 
 
 class DPCLink(DPC):
     """针对GPS坐标聚类, 采用区域一致性指数作为距离"""
 
+    def __init__(self, data) -> None:
+        super().__init__(data)
+        self.logger = logging.getLogger('dpc.DPCL')
+
     def calDis(self):
-        """计算距离矩阵
+        """计算区域一致性矩阵及距离矩阵
         """
-        disMatrix = np.zeros((self.N, self.N))
-        for p in (self.df.itertuples()):
+        logger = logging.getLogger('dpc.DPCL.calDis')
+        logger.info('Distance matrix calculation begins')
+
+        # 区域一致性矩阵
+        self.dis = np.zeros((self.N, self.N))
+        # 距离矩阵
+        self.dis2 = np.zeros((self.N, self.N))
+
+        for p in self.df.itertuples():
             i = p.Index
-            for q in (self.df[i + 1:].itertuples()):
+
+            for q in self.df[i + 1:].itertuples():
                 j = q.Index
-                d = coh(p, q)
-                disMatrix[i, j] = d
-                disMatrix[j, i] = d
 
-        self.dis = disMatrix
+                d1 = coh(p, q)
+                d2 = haversine([p.lat, p.lng], [q.lat, q.lng])
+                self.dis[i, j] = d1
+                self.dis[j, i] = d1
+                self.dis2[i, j] = d2
+                self.dis2[j, i] = d2
 
-    def calRho(self, dc=None):
+                # logger.debug(str(i)+' '+str(j)+' d1:'+str(d1))
+                # logger.debug(str(i)+' '+str(j)+' d2:'+str(d2))
+            logger.debug(str(i))
 
-        rho = np.zeros(self.N)
+        logger.info('Distance matrix calculation ends')
 
-        if dc == None:
-            dc = self.dc
-        else:
-            dc = dc
+    def calDel(self):
+        logger = logging.getLogger('dpc.DPCL.calDel')
 
-        for i, *_ in self.df[:self.N - 1].itertuples():
-            for j, *_ in self.df[i + 1:self.N].itertuples():
-                if self.dis[i, j] > dc:
-                    rho[i] = rho[i] + 1
-                    rho[j] = rho[j] + 1
+        delta = np.zeros(self.N)
+        toh = np.zeros(self.N)
 
-        self.df['rho'] = rho
+        for i, ri in self.df.iterrows():
+            indexs = self.df[self.df['rho'] > ri['rho']].index.values
+            if indexs.any():
+                disp = pd.Series(self.dis2[i, :])[indexs]
+                delta[i] = disp.min()
+                toh[i] = disp.idxmin()
+            else:
+                logger.info('The point of maximum density: '+str(i))
+                delta[i] = max(self.dis2[i, :])
+                toh[i] = -1
 
+        self.df['delta'] = delta
+        self.df['toh'] = toh
+    
+    def TSC():
+        """Temporal sequence constraint"""
+        pass
 
-if __name__ == "__main__":
-    from load import *
-
-    dataset_path = 'dataset/Geolife Trajectories 1.3/Data/'
-    for df in LoadG(dataset_path):
-        df.plot(x='lng', y='lat')
-        break
-
-    dpc = DPCLink(df)
-    dpc.calDis()
-    dpc.calDc(p=0.5)
-    dpc.calRho()
-    dpc.calDel()
-    dpc.df.plot.scatter(
-        x='lng',
-        y='lat',
-        c='rho',
-        colormap='viridis',
-        s=5,
-        figsize=(10, 10))
+    def EC():
+        """Entropy constraint"""    
+        pass
