@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from distance import norm2, coh
 from haversine import haversine
+from utils.itertool import *
 
 import logging
 dpc_logger = logging.getLogger('dpc')
@@ -194,7 +195,7 @@ class DPC:
 
         for idCluster, indexCenter in enumerate(self.centers):
             group(indexCenter, idCluster + 1)
-            logger.info('The number of cluster '+str(idCluster+1)+'--'+str(indexCenter)+': '+str(self.df[self.df.clusterID == idCluster + 1].shape[0]))
+            logger.info(str(self.df[self.df.clusterID == idCluster + 1].shape[0])+'points in cluster '+str(idCluster+1) + ' with center point '+str(indexCenter))
 
 
 class DPCLink(DPC):
@@ -253,11 +254,34 @@ class DPCLink(DPC):
 
         self.df['delta'] = delta
         self.df['toh'] = toh
-    
+
+
+class DPCLink_TE(DPCLink):
+    def __init__(self, data) -> None:
+        super().__init__(data)
+        self.logger = logging.getLogger('dpc.DPCL-TE')
+
     def TSC():
         """Temporal sequence constraint"""
         pass
 
-    def EC():
-        """Entropy constraint"""    
-        pass
+    def _ei(sq, d):
+        """计算一个序列的混乱指数, d为分组数"""
+
+        # 生成分组区间
+        ndNs = {}
+        for l, r in Two(np.linspace(0, 360, d+1)):
+            ndNs[str(l)+'-'+str(r)] = []
+            ndNs[str(l)+'-'+str(r)].append(pd.Interval(left=l, right=r, closed='right'))
+            ndNs[str(l)+'-'+str(r)].append(0)
+
+        # 计算落入区间内数量
+        for s in sq:
+            for n in ndNs:
+                if s in ndNs[n][0]:
+                    ndNs[n][1] = ndNs[n][1]+1
+        ndNs = [ndNs[n][1] for n in ndNs]
+        ndNs = [x/sum(ndNs)for x in ndNs]
+
+        ei = -sum([x*math.log(x, math.e) for x in ndNs if x != 0])
+        return ei
