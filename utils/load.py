@@ -93,6 +93,10 @@ class LoadG(Load):
     """读取Geolife Trajectories 1.3数据集, 已经稀疏了点.
     """
 
+    def __init__(self, dir_path, step=12):
+        super().__init__(dir_path)
+        self.step = step
+
     def readOne(self, path):
         df = pd.read_csv(path,
                          header=5,
@@ -102,7 +106,7 @@ class LoadG(Load):
         df['datetime'] = df.date + ' ' + df.time
         df.datetime = pd.to_datetime(df.datetime)
         df.drop(columns=['date', 'time'], inplace=True)
-        df = df.iloc[::12, :]
+        df = df.iloc[::self.step, :]
         df = df.reset_index(drop=True)
 
         return df

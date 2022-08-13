@@ -9,7 +9,7 @@ formatters:
 handlers:
   c1:
     class: logging.StreamHandler
-    level: INFO
+    level: WARNING
     formatter: cons
     stream: ext://sys.stdout
   f1:

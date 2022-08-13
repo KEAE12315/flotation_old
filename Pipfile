@@ -14,6 +14,9 @@ matplotlib = "*"
 autopep8 = "*"
 ipykernel = "*"
 folium = "*"
+flask = "*"
+flask-cors = "*"
+ipympl = "*"
 
 [requires]
 python_version = "3.8"
