@@ -67,10 +67,11 @@ class DPC:
         logger.info('Calculate dc by method ' + method)
 
         def proportion():
-            tmp = np.tril(self.dis)
-            tmp = tmp.ravel()
-            tmp = tmp[np.where(tmp)]
-            tmp = np.sort(tmp)
+            tmp = []
+            for i, row in enumerate(self.dis):
+                for d in row[:i]:
+                    tmp.append(d)
+
             self.dc = tmp[round(len(tmp) * kwargs['p'])]
 
             loggerP.debug('Order of all distances: ' + str(tmp))
@@ -157,7 +158,7 @@ class DPC:
                 rho[i] = rho[i] + tmp
                 rho[j] = rho[j] + tmp
 
-            logger.debug('rho of ' + str(i) + ': ' + str(tmp))
+            # logger.debug('rho of ' + str(i) + ': ' + str(tmp))
 
         self.df['rho'] = rho
         return rho

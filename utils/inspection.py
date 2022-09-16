@@ -47,7 +47,7 @@ class Evaluation():
         def warpper(self):
             try:
                 return func(self)
-            except:
+            except ZeroDivisionError:
                 return -1
         return warpper
 
@@ -85,6 +85,63 @@ class Evaluation():
             f'F index: {self.FI():.2}\n'
         print(msg)
         # return self.dfp.shape[0], self.tp, self.tn, self.fp, self.fn, self.Acc(), self.Precision(), self.Recall(), self.FI()
+
+
+def convert(df):
+    """列转换"""
+    tmp = df.copy(deep=True)
+    tmp = tmp[['type', 'pre1', 'pre2']]
+    tmp.loc[tmp['type'] != 'activity', 'type'] = False
+    tmp.loc[tmp['type'] == 'activity', 'type'] = True
+    tmp.loc[tmp['pre1'] != 'activity', 'pre1'] = False
+    tmp.loc[tmp['pre1'] == 'activity', 'pre1'] = True
+    tmp.loc[tmp['pre2'] != 'activity', 'pre2'] = False
+    tmp.loc[tmp['pre2'] == 'activity', 'pre2'] = True
+    return tmp.type, tmp.pre1, tmp.pre2
+
+
+class ConfusionMatrix2():
+    """二分类混淆矩阵中的评价指标"""
+
+    def __init__(self, predictions, labels) -> None:
+        """
+        Args:
+        - prediction: 预测值, 为bool值的可迭代对象
+        - labels: 真实值, 为bool值的可迭代对象
+        """
+        self.tp = 0
+        self.fp = 0
+        self.fn = 0
+        self.tn = 0
+        for prediction, label in zip(predictions, labels):
+            if prediction and label:
+                self.tp += 1
+            elif prediction and not label:
+                self.fp += 1
+            elif not prediction and label:
+                self.fn += 1
+            elif not prediction and not label:
+                self.tn += 1
+
+    def accuracy(self):
+        return (self.tp + self.tn) / (self.tp + self.fp + self.fn + self.tn)
+
+    def precision(self):
+        return self.tp / (self.tp + self.fp)
+
+    def recall(self):
+        return self.tp / (self.tp + self.fn)
+
+    def f1(self):
+        return 2 * self.precision() * self.recall() / (self.precision() + self.recall())
+
+    def returnHandler(self, func):
+        def warpper(self):
+            try:
+                return func(self)
+            except:
+                return -1
+        return warpper
 
 
 class EvalCluster:

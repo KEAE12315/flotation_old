@@ -17,6 +17,7 @@ folium = "*"
 flask = "*"
 flask-cors = "*"
 ipympl = "*"
+dill = "*"
 
 [requires]
 python_version = "3.8"

@@ -3,6 +3,7 @@ __pycache__
 .vscode
 .DS_Store
 *.code-workspace
+.tmp
 
 logs/*
 dataset/Geolife Trajectories 1.3

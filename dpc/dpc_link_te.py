@@ -64,7 +64,7 @@ def entropyIndex(sq: list, d: int) -> float:
     return ei
 
 
-def eiPicecs(df: pd.DataFrame, thresholdEI: float, groups: int) -> bool:
+def eiPicecs(df: pd.DataFrame, thresholdEI: float, groups: int):
     """判断轨迹序列是否满足混乱指数约束, 满足返回True
 
     Args:
